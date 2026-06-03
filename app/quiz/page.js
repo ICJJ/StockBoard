@@ -7,6 +7,7 @@ export default function Quiz() {
   const [picked, setPicked] = useState(null);
   const [result, setResult] = useState(null);
   const [msg, setMsg] = useState("加载中…");
+  const [lang, setLang] = useState("zh");
 
   useEffect(() => {
     quizApi.state()
@@ -36,13 +37,23 @@ export default function Quiz() {
   if (msg && !q) return <div className="container"><p style={{ padding: 40 }}>{msg}</p></div>;
   if (!q) return null;
 
+  const showZh = q.is_english && lang === "zh";
+  const dPrompt = showZh && q.prompt_zh ? q.prompt_zh : q.prompt;
+  const dOpts = showZh && q.options_zh ? q.options_zh : q.options;
+
   return (
     <div className="container" style={{ maxWidth: 640 }}>
       <h1 style={{ margin: "30px 0 6px" }}>每日一题</h1>
       <p style={{ color: "var(--text-dim)", marginBottom: 18 }}>答对才能进入看板;答错会显示答案,可重试。</p>
       <div className="bt-panel">
-        <div style={{ fontSize: 16, marginBottom: 16 }}>{q.prompt}</div>
-        {q.options.map((opt, i) => {
+        <div style={{ fontSize: 16, marginBottom: 16 }}>{dPrompt}</div>
+        {q.is_english && (
+          <button className="refresh-btn" style={{ marginBottom: 10 }}
+            onClick={() => setLang(lang === "zh" ? "en" : "zh")}>
+            {lang === "zh" ? "🌐 看英文原文" : "🌐 看中文"}
+          </button>
+        )}
+        {dOpts.map((opt, i) => {
           const isAnswer = result && !result.correct && result.correct_index === i;
           const isPicked = picked === i;
           return (
@@ -64,7 +75,7 @@ export default function Quiz() {
         )}
         {result && !result.correct && (
           <div className="notice error" style={{ marginTop: 12 }}>
-            答错了。正确答案:{String.fromCharCode(65 + result.correct_index)}。{result.explanation}
+            答错了。正确答案:{String.fromCharCode(65 + result.correct_index)}。{lang === "zh" && result.explanation_zh ? result.explanation_zh : result.explanation}
             <div style={{ marginTop: 8 }}>再选一次并提交即可进入。</div>
           </div>
         )}
