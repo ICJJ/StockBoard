@@ -44,3 +44,15 @@ def test_add_authored_validates(quiz_db):
     src = con.execute("SELECT source FROM questions WHERE prompt='good'").fetchone()["source"]
     con.close()
     assert src == "claude"
+
+
+def test_add_authored_cli(quiz_db):
+    import os, json, subprocess
+    payload = json.dumps([{"prompt": "cli q", "options": ["a", "b", "c", "d"], "correct_index": 1, "subject": "markets"}])
+    env = {**os.environ, "PYTHONPATH": "."}
+    r = subprocess.run(["./.venv-trading/bin/python", "-m", "trading.add_authored"],
+                       input=payload, capture_output=True, text=True, env=env)
+    assert r.returncode == 0, r.stderr
+    assert "inserted 1" in r.stdout
+    from trading import quiz
+    assert quiz.count_active() == 1
