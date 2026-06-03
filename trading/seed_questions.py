@@ -98,3 +98,70 @@ def seed_mmlu_pro(force: bool = False, loader=None) -> int:
         n += 1
     print(f"seeded {n} MMLU-Pro questions")
     return n
+
+
+def _normalize_financeiq(ex: dict, subject: str):
+    q = ex.get("question") or ex.get("question_text") or ex.get("query")
+    if not q:
+        return None
+    options = ex.get("options")
+    if not isinstance(options, list):
+        options = []
+        for key in ("A", "B", "C", "D", "E", "F"):
+            v = ex.get(key)
+            if v not in (None, ""):
+                options.append(v)
+    ans = ex.get("answer")
+    if isinstance(ans, str) and ans and ans[0].upper() in "ABCDEF":
+        idx = "ABCDEF".index(ans[0].upper())
+    elif isinstance(ans, int):
+        idx = ans
+    else:
+        return None
+    if not (len(options) >= 2 and 0 <= idx < len(options)):
+        return None
+    return {"question": q, "options": options, "answer_index": idx, "subject": subject}
+
+
+def _financeiq_default_loader():
+    from datasets import get_dataset_config_names, load_dataset
+    for cfg in get_dataset_config_names("Duxiaoman-DI/FinanceIQ"):
+        try:
+            ds = load_dataset("Duxiaoman-DI/FinanceIQ", cfg, split="test")
+        except Exception:
+            continue
+        for ex in ds:
+            norm = _normalize_financeiq(ex, cfg)
+            if norm:
+                yield norm
+
+
+def seed_financeiq(force: bool = False, loader=None) -> int:
+    loader = loader or _financeiq_default_loader
+    quiz_db.init_db()
+    con = quiz_db.connect()
+    try:
+        existing = con.execute("SELECT COUNT(*) AS c FROM questions WHERE source='financeiq'").fetchone()["c"]
+    finally:
+        con.close()
+    if existing and not force:
+        print(f"financeiq already seeded ({existing}); pass force=True to re-seed.")
+        return 0
+    if force:
+        con = quiz_db.connect()
+        try:
+            con.execute("DELETE FROM questions WHERE source='financeiq'"); con.commit()
+        finally:
+            con.close()
+    n = 0
+    for ex in loader():
+        options = ex.get("options"); ai = ex.get("answer_index")
+        if not (isinstance(options, list) and len(options) >= 2
+                and isinstance(ai, int) and 0 <= ai < len(options)):
+            continue
+        quiz.add_question(ex["question"], options, ai,
+                          explanation=f"正确答案:{options[ai]}",
+                          subject=ex.get("subject", "financeiq"), source="financeiq")
+        n += 1
+    print(f"seeded {n} FinanceIQ questions")
+    return n
