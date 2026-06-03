@@ -61,6 +61,12 @@ CREATE TABLE IF NOT EXISTS attempts (
     created_at     TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(user_id, quiz_date)
 );
+
+CREATE TABLE IF NOT EXISTS translations (
+    en TEXT PRIMARY KEY,
+    zh TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
