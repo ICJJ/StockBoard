@@ -49,6 +49,18 @@ CREATE TABLE IF NOT EXISTS question_feedback (
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(user_id, question_id)
 );
+
+CREATE TABLE IF NOT EXISTS attempts (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id        INTEGER NOT NULL,
+    question_id    INTEGER NOT NULL,
+    quiz_date      TEXT NOT NULL,
+    first_try_correct INTEGER NOT NULL DEFAULT 0,
+    entered        INTEGER NOT NULL DEFAULT 0,
+    attempts_count INTEGER NOT NULL DEFAULT 0,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, quiz_date)
+);
 """
 
 
