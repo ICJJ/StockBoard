@@ -56,3 +56,45 @@ def seed(force: bool = False, loader=None) -> int:
 
 if __name__ == "__main__":
     seed(force="--force" in sys.argv)
+
+
+MMLU_PRO_CATEGORIES = ["economics", "business"]
+
+
+def _mmlu_pro_default_loader():
+    from datasets import load_dataset
+    return load_dataset("TIGER-Lab/MMLU-Pro", split="test")
+
+
+def seed_mmlu_pro(force: bool = False, loader=None) -> int:
+    loader = loader or _mmlu_pro_default_loader
+    quiz_db.init_db()
+    con = quiz_db.connect()
+    try:
+        existing = con.execute("SELECT COUNT(*) AS c FROM questions WHERE source='mmlu_pro'").fetchone()["c"]
+    finally:
+        con.close()
+    if existing and not force:
+        print(f"mmlu_pro already seeded ({existing}); pass force=True to re-seed.")
+        return 0
+    if force:
+        con = quiz_db.connect()
+        try:
+            con.execute("DELETE FROM questions WHERE source='mmlu_pro'"); con.commit()
+        finally:
+            con.close()
+    n = 0
+    for ex in loader():
+        cat = ex.get("category")
+        if cat not in MMLU_PRO_CATEGORIES:
+            continue
+        options = ex.get("options"); ai = ex.get("answer_index")
+        if not (isinstance(options, list) and len(options) >= 2
+                and isinstance(ai, int) and 0 <= ai < len(options)):
+            continue
+        quiz.add_question(ex["question"], options, ai,
+                          explanation=f"正确答案:{options[ai]}",
+                          subject=f"mmlu_pro:{cat}", source="mmlu_pro")
+        n += 1
+    print(f"seeded {n} MMLU-Pro questions")
+    return n
