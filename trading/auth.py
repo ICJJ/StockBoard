@@ -121,3 +121,11 @@ def list_users() -> list[dict]:
             "SELECT username, is_admin, disabled, created_at FROM users ORDER BY username")]
     finally:
         con.close()
+
+
+def user_count() -> int:
+    con = quiz_db.connect()
+    try:
+        return con.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
+    finally:
+        con.close()

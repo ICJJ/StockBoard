@@ -72,9 +72,15 @@ def test_login_bad_password_401(client):
     assert r.status_code == 401
 
 
-def test_admin_icjj_seeded(client):
-    r = client.post("/auth/login", json={"username": "icjj", "password": "adminpw"})
-    assert r.status_code == 200 and r.json().get("is_admin") in (True, 1)
+def test_first_login_bootstraps_admin(client):
+    r = client.post("/auth/login", json={"username": "icjj", "password": "chosen-pw"})
+    assert r.status_code == 200 and r.json()["is_admin"] in (True, 1)
+
+
+def test_unknown_user_rejected_after_bootstrap(client):
+    client.post("/auth/login", json={"username": "icjj", "password": "chosen-pw"})  # bootstrap
+    r = client.post("/auth/login", json={"username": "stranger", "password": "x"})
+    assert r.status_code == 401  # non-first users must be admin-added
 
 
 def test_admin_can_add_and_disable_users(client):
