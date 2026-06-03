@@ -144,8 +144,14 @@ class AnswerReq(BaseModel):
 def quiz_today(user=Depends(current_user)):
     q = quiz.daily_question()
     if not q:
-        return {"available": False}              # fail-open: frontend lets the user in
-    return {"available": True, "id": q["id"], "prompt": q["prompt"], "options": q["options"]}
+        return {"available": False}
+    loc = quiz.localize_question(q)
+    resp = {"available": True, "id": q["id"], "prompt": q["prompt"],
+            "options": q["options"], "is_english": loc["is_english"]}
+    if loc.get("is_english"):
+        resp["prompt_zh"] = loc.get("prompt_zh")
+        resp["options_zh"] = loc.get("options_zh")
+    return resp
 
 
 @app.get("/quiz/state")
@@ -156,9 +162,12 @@ def quiz_state(user=Depends(current_user)):
 @app.post("/quiz/answer")
 def quiz_answer(req: AnswerReq, user=Depends(current_user)):
     try:
-        return quiz.record_attempt(user["id"], req.question_id, req.choice_index)
+        result = quiz.record_attempt(user["id"], req.question_id, req.choice_index)
     except ValueError as e:
         raise HTTPException(400, str(e))
+    if not result["correct"] and result.get("explanation"):
+        result["explanation_zh"] = quiz.translate_to_zh(result["explanation"])
+    return result
 
 
 @app.get("/quiz/leaderboard")

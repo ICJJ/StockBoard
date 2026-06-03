@@ -35,3 +35,17 @@ def test_localize_question_english_and_chinese(quiz_db):
     loc2 = quiz.localize_question(cn, provider=fake)
     assert loc2["is_english"] is False
     assert "prompt_zh" not in loc2
+
+
+def test_quiz_today_and_reveal_localized(client, monkeypatch):
+    from trading import quiz
+    monkeypatch.setattr(quiz, "_default_translate_provider", lambda t: "译:" + t)
+    qid = quiz.add_question("What is a bond?", ["debt", "equity", "cash", "gold"], 0,
+                            explanation="A bond is debt.", source="mmlu")
+    client.post("/auth/login", json={"username": "icjj", "password": "pw"})
+    t = client.get("/quiz/today").json()
+    assert t["is_english"] is True
+    assert t["prompt_zh"] == "译:What is a bond?" and t["options_zh"][0] == "译:debt"
+    assert "correct_index" not in t
+    w = client.post("/quiz/answer", json={"question_id": qid, "choice_index": 1}).json()
+    assert w["correct"] is False and w["explanation_zh"] == "译:A bond is debt."
