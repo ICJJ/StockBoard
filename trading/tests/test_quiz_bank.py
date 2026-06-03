@@ -33,3 +33,14 @@ def test_feedback_upsert_and_tally(quiz_db):
     quiz.record_feedback(user_id=1, question_id=qid, vote="keep")
     tally = quiz.feedback_tally(qid)
     assert tally == {"keep": 1, "remove": 1}
+
+
+def test_feedback_endpoint_requires_login_and_records(client):
+    from trading import quiz
+    qid = quiz.add_question("q", ["a", "b", "c", "d"], 0)
+    assert client.post("/quiz/feedback", json={"question_id": qid, "vote": "remove"}).status_code == 401
+    client.post("/auth/login", json={"username": "icjj", "password": "pw"})  # empty DB -> bootstrap admin
+    r = client.post("/quiz/feedback", json={"question_id": qid, "vote": "remove", "reason": "太专业"})
+    assert r.status_code == 200
+    assert quiz.feedback_tally(qid) == {"remove": 1}
+    assert client.post("/quiz/feedback", json={"question_id": qid, "vote": "maybe"}).status_code == 400

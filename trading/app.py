@@ -18,7 +18,7 @@ from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import auth, ib_client, quiz_db
+from . import auth, ib_client, quiz, quiz_db
 from .backtest import STRATEGIES, run_backtest, validate_strategy
 
 app = FastAPI(title="StockBoard Trading Backend", version="0.1.0")
@@ -118,6 +118,20 @@ def admin_patch_user(username: str, req: PatchUserReq, _=Depends(require_admin))
         auth.set_disabled(username, req.disabled)
     if req.new_password:
         auth.set_password(username, req.new_password)
+    return {"ok": True}
+
+
+class FeedbackReq(BaseModel):
+    question_id: int
+    vote: str           # keep | remove
+    reason: str = ""
+
+
+@app.post("/quiz/feedback")
+def quiz_feedback(req: FeedbackReq, user=Depends(current_user)):
+    if req.vote not in ("keep", "remove"):
+        raise HTTPException(400, "vote must be 'keep' or 'remove'")
+    quiz.record_feedback(user["id"], req.question_id, req.vote, req.reason)
     return {"ok": True}
 
 
