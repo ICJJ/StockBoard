@@ -73,7 +73,7 @@ def feedback_tally(question_id: int) -> dict:
 
 
 import hashlib
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
@@ -146,3 +146,49 @@ def record_attempt(user_id: int, question_id: int, choice_index: int,
         "correct_index": None if correct else q["correct_index"],
         "explanation": None if correct else q["explanation"],
     }
+
+
+def _streak(entered_dates, today=None) -> int:
+    if not entered_dates:
+        return 0
+    today = today or date.fromisoformat(today_et())
+    have = set(entered_dates)
+    cur = today if today.isoformat() in have else today - timedelta(days=1)
+    n = 0
+    while cur.isoformat() in have:
+        n += 1
+        cur -= timedelta(days=1)
+    return n
+
+
+def user_stats(user_id: int) -> dict:
+    con = quiz_db.connect()
+    try:
+        points = con.execute(
+            "SELECT COUNT(*) AS c FROM attempts WHERE user_id=? AND first_try_correct=1",
+            (user_id,)).fetchone()["c"]
+        days = con.execute(
+            "SELECT COUNT(*) AS c FROM attempts WHERE user_id=? AND entered=1",
+            (user_id,)).fetchone()["c"]
+        dates = [r["quiz_date"] for r in con.execute(
+            "SELECT quiz_date FROM attempts WHERE user_id=? AND entered=1", (user_id,))]
+    finally:
+        con.close()
+    return {
+        "points": points,
+        "days_played": days,
+        "accuracy": round(points / days, 3) if days else 0.0,
+        "streak": _streak(dates),
+    }
+
+
+def leaderboard() -> list:
+    con = quiz_db.connect()
+    try:
+        users = [(r["id"], r["username"]) for r in con.execute(
+            "SELECT id, username FROM users ORDER BY username")]
+    finally:
+        con.close()
+    rows = [{"username": name, **user_stats(uid)} for uid, name in users]
+    rows.sort(key=lambda r: (r["points"], r["streak"]), reverse=True)
+    return rows

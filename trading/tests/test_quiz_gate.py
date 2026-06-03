@@ -37,3 +37,27 @@ def test_answer_first_try_correct_scores(quiz_db):
     r = quiz.record_attempt(user_id=9, question_id=qid, choice_index=1, quiz_date="2026-06-04")
     assert r["correct"] and r["scored"] and r["entered"]
     assert r["correct_index"] is None and r["explanation"] is None
+
+
+def test_streak_and_stats(quiz_db):
+    from trading import quiz
+    from datetime import date
+    assert quiz._streak(["2026-06-03", "2026-06-02", "2026-06-01"], today=date(2026, 6, 3)) == 3
+    assert quiz._streak(["2026-06-03", "2026-06-01"], today=date(2026, 6, 3)) == 1
+    assert quiz._streak(["2026-06-02", "2026-06-01"], today=date(2026, 6, 3)) == 2
+    assert quiz._streak(["2026-06-01"], today=date(2026, 6, 3)) == 0
+    assert quiz._streak([], today=date(2026, 6, 3)) == 0
+
+def test_user_stats_and_leaderboard(quiz_db):
+    from trading import quiz, auth
+    auth.create_user("alice", "pw"); auth.create_user("bob", "pw")
+    aid = auth.get_user("alice")["id"]; bid = auth.get_user("bob")["id"]
+    qid = quiz.add_question("q", ["a", "b", "c", "d"], 0)
+    quiz.record_attempt(aid, qid, 0, quiz_date="2026-06-03")
+    quiz.record_attempt(bid, qid, 1, quiz_date="2026-06-03")
+    quiz.record_attempt(bid, qid, 0, quiz_date="2026-06-03")
+    sa = quiz.user_stats(aid); sb = quiz.user_stats(bid)
+    assert sa["points"] == 1 and sb["points"] == 0
+    assert sa["days_played"] == 1 and sb["days_played"] == 1
+    lb = quiz.leaderboard()
+    assert lb[0]["username"] == "alice" and lb[0]["points"] == 1
