@@ -235,3 +235,45 @@ def leaderboard() -> list:
     rows = [{"username": name, **user_stats(uid)} for uid, name in users]
     rows.sort(key=lambda r: (r["points"], r["streak"]), reverse=True)
     return rows
+
+
+def _has_cjk(s: str) -> bool:
+    return any("一" <= ch <= "鿿" for ch in (s or ""))
+
+
+def _default_translate_provider(text: str) -> str:
+    import json
+    import urllib.parse
+    import urllib.request
+    url = ("https://translate.googleapis.com/translate_a/single"
+           "?client=gtx&sl=en&tl=zh-CN&dt=t&q=" + urllib.parse.quote(text))
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=8) as r:
+        data = json.load(r)
+    return "".join(seg[0] for seg in data[0] if seg and seg[0])
+
+
+def translate_to_zh(text: str, provider=None) -> str:
+    if not text or _has_cjk(text):
+        return text
+    con = quiz_db.connect()
+    try:
+        row = con.execute("SELECT zh FROM translations WHERE en=?", (text,)).fetchone()
+        if row:
+            return row["zh"]
+    finally:
+        con.close()
+    provider = provider or _default_translate_provider
+    try:
+        zh = provider(text)
+    except Exception:
+        return text
+    if not zh:
+        return text
+    con = quiz_db.connect()
+    try:
+        con.execute("INSERT OR IGNORE INTO translations(en, zh) VALUES (?, ?)", (text, zh))
+        con.commit()
+    finally:
+        con.close()
+    return zh
