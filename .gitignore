@@ -22,3 +22,6 @@ trading/__pycache__/
 
 # Local trading secrets (real creds — never commit)
 .env.trading
+
+# Quiz SQLite DB (local data, never commit)
+trading/quiz.db
