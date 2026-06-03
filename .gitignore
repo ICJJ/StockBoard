@@ -19,3 +19,6 @@ trading/__pycache__/
 # Tailscale cert files (if ever written by `tailscale cert`)
 *.ts.net.crt
 *.ts.net.key
+
+# Local trading secrets (real creds — never commit)
+.env.trading
