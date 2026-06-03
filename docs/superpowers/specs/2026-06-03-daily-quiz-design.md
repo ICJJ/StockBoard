@@ -11,7 +11,7 @@ Gate the StockBoard board behind a **daily capital-markets multiple-choice quest
 
 1. **Identity**: per-user accounts; `icjj` is admin; **allowlist only** (admin provisions accounts, no public signup); hashed passwords; persistent "remember me" sessions (no practical expiry).
 2. **Storage/deployment**: FastAPI + **SQLite**, runs on the **funnel app** only. Vercel stays the Basic-Auth board mirror with quiz disabled.
-3. **Question bank**: professional-grade; **seed = MMLU professional subsets** (MIT, verified answers); a **scheduled Claude task** that only **selects/filters verified-source questions and prunes** — it does **NOT author/draft** questions; selected questions go live directly. **Per-question user feedback** ("too professional → keep/remove") drives pruning.
+3. **Question bank**: professional-grade; **seed = MMLU + MMLU-Pro (econ/business, MIT) + FinanceIQ (Chinese securities, cc-by-NC-sa, personal/local-only)**; a **weekly scheduled Claude task** that prunes feedback-flagged questions AND **authors ~5 original, fact-grounded MCQs** (`source='claude'`, direct-active — original questions testing verifiable facts, **never copying copyrighted text**). **Per-question user feedback** ("too professional → keep/remove") drives pruning. *(Revised 2026-06-03: authoring was previously disallowed; the soft gate + feedback-prune make direct-active authored questions acceptable.)*
 4. **Scoring**: **first-attempt** correctness scores; **streak** (consecutive days) + **cumulative** correct; **leaderboard** across accounts.
 5. **Gate**: hard — must answer correctly to enter; wrong → reveal answer + retry; **one question/day, same for all users**.
 
@@ -59,7 +59,7 @@ Gate the StockBoard board behind a **daily capital-markets multiple-choice quest
 
 - **Seed** (`seed_questions.py`, one-time): import MMLU professional/finance subsets — `professional_accounting`, `high_school_macroeconomics`, `high_school_microeconomics`, `econometrics` (via HF `datasets`/parquet). Map to schema, `source=mmlu`, `status=active`. De-dupe.
 - **User feedback**: "too professional" → `keep`/`remove` vote (one per user/question).
-- **Scheduled Claude task** (scheduled-tasks SKILL.md, weekly) — Claude **only selects/filters and prunes; it does NOT author/draft questions**:
+- **Scheduled Claude task** (scheduled-tasks SKILL.md, weekly) — Claude prunes feedback-flagged questions AND **authors ~5 original, fact-grounded MCQs** (direct-active, `source='claude'`; original expression testing verifiable facts, **never copying copyrighted text**), inserted via `trading/add_authored.py`:
   1. **Prune**: retire (`status=retired`) questions where `remove_votes ≥ 3 AND remove_votes > keep_votes`.
   2. **Select / top-up**: if active pool `< 60`, **select** more questions from the verified professional source (capital-markets-relevant, de-duped) and **activate them directly** (`status=active`). No review queue — the source answers are already verified, so the questions Claude selects go live immediately. This honors the "LLM 可能出错" constraint: Claude never invents questions or answers, it only chooses among pre-verified ones and drops feedback-flagged ones.
 
