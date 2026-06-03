@@ -277,3 +277,26 @@ def translate_to_zh(text: str, provider=None) -> str:
     finally:
         con.close()
     return zh
+
+
+def _is_english(text: str) -> bool:
+    if not text or _has_cjk(text):
+        return False
+    letters = [c for c in text if c.isalpha()]
+    if not letters:
+        return False
+    ascii_letters = [c for c in letters if ord(c) < 128]
+    return len(ascii_letters) / len(letters) > 0.6
+
+
+def localize_question(q: dict, provider=None) -> dict:
+    out = dict(q)
+    if _is_english(q.get("prompt", "")):
+        out["is_english"] = True
+        out["prompt_zh"] = translate_to_zh(q["prompt"], provider)
+        out["options_zh"] = [translate_to_zh(o, provider) for o in q.get("options", [])]
+        if q.get("explanation"):
+            out["explanation_zh"] = translate_to_zh(q["explanation"], provider)
+    else:
+        out["is_english"] = False
+    return out
