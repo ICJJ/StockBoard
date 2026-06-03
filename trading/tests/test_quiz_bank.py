@@ -35,6 +35,21 @@ def test_feedback_upsert_and_tally(quiz_db):
     assert tally == {"keep": 1, "remove": 1}
 
 
+def test_seed_maps_mmlu_examples(quiz_db):
+    from trading import seed_questions, quiz
+    fake = [
+        {"question": "Q1", "choices": ["a", "b", "c", "d"], "answer": 2},
+        {"question": "Q2", "choices": ["w", "x", "y", "z"], "answer": 0},
+        {"question": "bad", "choices": ["only", "three", "opts"], "answer": 0},
+    ]
+    n = seed_questions.seed(loader=lambda subject: fake)
+    assert n == 2 * len(seed_questions.SUBJECTS)
+    assert quiz.count_active() == n
+    q = quiz.get_question(1)
+    assert len(q["options"]) == 4 and 0 <= q["correct_index"] < 4
+    assert q["explanation"].startswith("正确答案")
+
+
 def test_feedback_endpoint_requires_login_and_records(client):
     from trading import quiz
     qid = quiz.add_question("q", ["a", "b", "c", "d"], 0)
