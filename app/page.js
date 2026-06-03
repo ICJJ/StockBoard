@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Nav from "../components/Nav";
 import SearchBar from "../components/SearchBar";
 import StockCard from "../components/StockCard";
+import { quizApi } from "../lib/quizApi";
 
 const DEFAULT_WATCHLIST = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "TSLA", "META"];
 const STORAGE_KEY = "stockboard.watchlist.v1";
@@ -29,6 +30,7 @@ export default function Page() {
   const [updatedAt, setUpdatedAt] = useState(null);
   const [market, setMarket] = useState({ open: false });
   const [hydrated, setHydrated] = useState(false);
+  const [gate, setGate] = useState("checking");
   const watchRef = useRef(watchlist);
 
   // Load persisted watchlist on mount.
@@ -102,6 +104,12 @@ export default function Page() {
     return () => clearInterval(id);
   }, [watchlist, hydrated, fetchQuotes]);
 
+  useEffect(() => {
+    quizApi.state()
+      .then((s) => { if (s.entered_today) setGate("ok"); else { setGate("redirect"); window.location.href = "/quiz"; } })
+      .catch(() => setGate("ok"));
+  }, []);
+
   function addSymbol(symbol) {
     const s = symbol.trim().toUpperCase();
     if (!s || watchlist.includes(s)) return;
@@ -120,6 +128,10 @@ export default function Page() {
   const updatedLabel = updatedAt
     ? new Date(updatedAt).toLocaleTimeString("en-US", { hour12: false })
     : "—";
+
+  if (gate !== "ok") {
+    return <div className="container"><p style={{ padding: 48, textAlign: "center", color: "var(--text-dim)" }}>每日一题校验中…</p></div>;
+  }
 
   return (
     <div className="container">
