@@ -388,3 +388,84 @@ a {
   color: var(--text);
   border-color: var(--accent);
 }
+
+/* Backtest page */
+.bt-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 820px) {
+  .bt-grid { grid-template-columns: 1fr; }
+}
+.bt-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bt-field { display: flex; flex-direction: column; gap: 5px; }
+.bt-field > span { font-size: 12px; color: var(--text-dim); }
+.bt-field .search-input { padding: 9px 11px; font-size: 14px; }
+.bt-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bt-run {
+  margin-top: 6px;
+  padding: 11px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--green));
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bt-run:disabled { opacity: 0.5; cursor: not-allowed; }
+.bt-results {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+  min-height: 320px;
+}
+.bt-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.bt-metric {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.bt-metric span { font-size: 11px; color: var(--text-dim); }
+.bt-metric b { font-size: 18px; font-weight: 700; }
+.bt-metric.up b { color: var(--green); }
+.bt-metric.down b { color: var(--red); }
+.bt-chart { width: 100%; height: auto; display: block; }
+.bt-chart-empty {
+  display: grid;
+  place-items: center;
+  height: 280px;
+  color: var(--text-faint);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+.bt-foot { margin-top: 12px; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+.nav-link {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 9px;
+  padding: 6px 11px;
+  font-size: 13px;
+}
+.nav-link:hover { color: var(--text); border-color: var(--accent); }

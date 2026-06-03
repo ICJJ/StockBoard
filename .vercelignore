@@ -1,0 +1,3 @@
+# Local-only Python trading backend — never deploy to Vercel
+.venv-trading/
+trading/

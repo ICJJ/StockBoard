@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import SearchBar from "../components/SearchBar";
 import StockCard from "../components/StockCard";
 
@@ -131,6 +132,7 @@ export default function Page() {
           </div>
         </div>
         <div className="header-meta">
+          <Link className="nav-link" href="/backtest">回测 →</Link>
           <span className="market-status">
             <span className={`dot ${market.open ? "open" : "closed"}`} />
             {market.open ? "美股交易中" : "美股休市"}

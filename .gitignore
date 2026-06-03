@@ -10,3 +10,8 @@
 *.tsbuildinfo
 next-env.d.ts
 npm-debug.log*
+
+# Python trading backend (local-only, never deployed to Vercel)
+.venv-trading/
+trading/__pycache__/
+*.pyc
