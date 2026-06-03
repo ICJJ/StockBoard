@@ -15,3 +15,7 @@ npm-debug.log*
 .venv-trading/
 trading/__pycache__/
 *.pyc
+
+# Tailscale cert files (if ever written by `tailscale cert`)
+*.ts.net.crt
+*.ts.net.key
