@@ -10,10 +10,14 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Explicit PATH — launchd/`bash -l` won't have the zsh-configured node path.
+export PATH="/Users/maymay/.local/bin:/Users/maymay/.local/node/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+
 # Load local secrets (gitignored): BASIC_AUTH_USER / BASIC_AUTH_PASSWORD
 [[ -f .env.trading ]] && set -a && . ./.env.trading && set +a
 
 TS="${TAILSCALE:-/Applications/Tailscale.app/Contents/MacOS/Tailscale}"
+BACK_PID="" FRONT_PID=""
 
 # Site login (Basic Auth) — protects the public Funnel URL.
 # Set these in your shell before running (do NOT hardcode here):
@@ -30,12 +34,16 @@ PYTHONPATH="$PWD" ./.venv-trading/bin/uvicorn trading.app:app \
   --host 127.0.0.1 --port 8000 --log-level warning &
 BACK_PID=$!
 
-echo "▶ building + starting Next app on :3000 ..."
-npm run build >/dev/null 2>&1
+# Build only if not already built (fast restarts; rebuild manually on code changes).
+if [[ ! -f .next/BUILD_ID ]]; then
+  echo "▶ building Next app ..."
+  npm run build
+fi
+echo "▶ starting Next app on :3000 ..."
 npm start -- --port 3000 &
 FRONT_PID=$!
 
-cleanup() { kill "$BACK_PID" "$FRONT_PID" 2>/dev/null || true; }
+cleanup() { kill "${BACK_PID:-}" "${FRONT_PID:-}" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
 if [[ "${1:-}" == "--funnel" ]]; then
