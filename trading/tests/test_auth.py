@@ -11,3 +11,12 @@ def test_password_hash_roundtrip():
     assert h != "s3cret!"
     assert auth.verify_password(h, "s3cret!") is True
     assert auth.verify_password(h, "wrong") is False
+
+
+def test_session_cookie_sign_verify_and_tamper(monkeypatch):
+    monkeypatch.setenv("SESSION_SECRET", "k")
+    from trading import auth
+    tok = auth.make_session("icjj")
+    assert auth.read_session(tok) == "icjj"
+    assert auth.read_session(tok + "x") is None
+    assert auth.read_session("garbage") is None
