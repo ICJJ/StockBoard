@@ -26,6 +26,29 @@ CREATE TABLE IF NOT EXISTS users (
     disabled      INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS questions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt        TEXT NOT NULL,
+    options_json  TEXT NOT NULL,
+    correct_index INTEGER NOT NULL,
+    explanation   TEXT NOT NULL DEFAULT '',
+    subject       TEXT NOT NULL DEFAULT '',
+    source        TEXT NOT NULL DEFAULT 'mmlu',
+    status        TEXT NOT NULL DEFAULT 'active',
+    difficulty    TEXT NOT NULL DEFAULT '',
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS question_feedback (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL,
+    question_id INTEGER NOT NULL,
+    vote        TEXT NOT NULL,
+    reason      TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, question_id)
+);
 """
 
 
