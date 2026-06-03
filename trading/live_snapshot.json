@@ -1,0 +1,75 @@
+{
+  "source": "IBKR official Claude connector (read-only)",
+  "updated_at": "2026-06-03T05:56:16+00:00",
+  "account_type": "LIVE",
+  "net_liquidation": 12477.1,
+  "total_cash": 35.71,
+  "total_market_value": 12441.38,
+  "total_unrealized_pnl": 491.45,
+  "positions": [
+    {
+      "symbol": "META",
+      "position": 6,
+      "avg_cost": 612.8407,
+      "market_price": 600.1,
+      "market_value": 3600.6,
+      "unrealized_pnl": -76.44
+    },
+    {
+      "symbol": "MRVL",
+      "position": 10,
+      "avg_cost": 273.5339,
+      "market_price": 318.8,
+      "market_value": 3188.0,
+      "unrealized_pnl": 452.66
+    },
+    {
+      "symbol": "GOOG",
+      "position": 5,
+      "avg_cost": 385.8003,
+      "market_price": 358.54,
+      "market_value": 1792.7,
+      "unrealized_pnl": -136.3
+    },
+    {
+      "symbol": "NVDA",
+      "position": 6,
+      "avg_cost": 214.492,
+      "market_price": 221.79,
+      "market_value": 1330.74,
+      "unrealized_pnl": 43.79
+    },
+    {
+      "symbol": "TSLA",
+      "position": 3,
+      "avg_cost": 432.2324,
+      "market_price": 421.79,
+      "market_value": 1265.37,
+      "unrealized_pnl": -31.33
+    },
+    {
+      "symbol": "NOK",
+      "position": 36,
+      "avg_cost": 13.9841,
+      "market_price": 16.67,
+      "market_value": 600.12,
+      "unrealized_pnl": 96.69
+    },
+    {
+      "symbol": "DRAM",
+      "position": 7,
+      "avg_cost": 52.5284,
+      "market_price": 69.35,
+      "market_value": 485.45,
+      "unrealized_pnl": 117.76
+    },
+    {
+      "symbol": "BB",
+      "position": 16,
+      "avg_cost": 9.6113,
+      "market_price": 11.15,
+      "market_value": 178.4,
+      "unrealized_pnl": 24.62
+    }
+  ]
+}

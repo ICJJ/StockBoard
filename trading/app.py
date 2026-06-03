@@ -8,7 +8,9 @@ Run:  ./.venv-trading/bin/uvicorn trading.app:app --reload --port 8000
 
 from __future__ import annotations
 
+import json
 import os
+import pathlib
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -64,6 +66,21 @@ def paper_positions(_=Depends(require_auth)):
         return {"positions": ib_client.get_positions()}
     except Exception as e:
         raise HTTPException(503, f"TWS connection failed: {e}")
+
+
+_SNAPSHOT = pathlib.Path(__file__).parent / "live_snapshot.json"
+
+
+@app.get("/live")
+def live(_=Depends(require_auth)):
+    """Read-only LIVE account snapshot. Populated out-of-band via the official
+    IBKR Claude connector (MCP) — this backend never connects to the live
+    account and has no way to trade it."""
+    if not _SNAPSHOT.exists():
+        return {"available": False, "positions": [], "note": "尚无实盘快照"}
+    data = json.loads(_SNAPSHOT.read_text())
+    data["available"] = True
+    return data
 
 
 @app.get("/strategies")

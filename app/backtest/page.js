@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Nav from "../../components/Nav";
 import { tradingApi } from "../../lib/tradingApi";
 import EquityChart from "../../components/EquityChart";
 
@@ -91,7 +91,7 @@ export default function BacktestPage() {
             <span className={`dot ${backendUp ? "open" : "closed"}`} />
             {backendUp === null ? "连接后端…" : backendUp ? "后端在线" : "后端离线"}
           </span>
-          <Link className="refresh-btn" href="/">← 看板</Link>
+          <Nav />
         </div>
       </header>
 

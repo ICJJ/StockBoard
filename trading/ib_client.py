@@ -61,16 +61,30 @@ def get_account() -> dict:
 
 def get_positions() -> list[dict]:
     with ib_session() as ib:
+        ib.sleep(1.0)  # let initial account/portfolio data arrive
         out = []
-        for p in ib.positions():
-            c = p.contract
+        for it in ib.portfolio():
+            c = it.contract
             out.append({
                 "symbol": c.symbol,
                 "sec_type": c.secType,
-                "position": float(p.position),
-                "avg_cost": round(float(p.avgCost), 4),
+                "position": float(it.position),
+                "avg_cost": round(float(it.averageCost), 4),
+                "market_price": round(float(it.marketPrice), 4),
+                "market_value": round(float(it.marketValue), 2),
+                "unrealized_pnl": round(float(it.unrealizedPNL), 2),
+                "realized_pnl": round(float(it.realizedPNL), 2),
             })
-        return sorted(out, key=lambda x: -abs(x["position"]))
+        if not out:  # fallback: positions() has no live prices
+            for p in ib.positions():
+                c = p.contract
+                out.append({
+                    "symbol": c.symbol, "sec_type": c.secType,
+                    "position": float(p.position), "avg_cost": round(float(p.avgCost), 4),
+                    "market_price": None, "market_value": None,
+                    "unrealized_pnl": None, "realized_pnl": None,
+                })
+        return sorted(out, key=lambda x: -abs(x.get("market_value") or 0))
 
 
 _DUR = {
