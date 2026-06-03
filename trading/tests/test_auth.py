@@ -20,3 +20,14 @@ def test_session_cookie_sign_verify_and_tamper(monkeypatch):
     assert auth.read_session(tok) == "icjj"
     assert auth.read_session(tok + "x") is None
     assert auth.read_session("garbage") is None
+
+
+def test_user_store(quiz_db):
+    from trading import auth
+    auth.create_user("alice", "pw1", is_admin=False)
+    assert auth.get_user("alice")["username"] == "alice"
+    assert auth.check_login("alice", "pw1") is True
+    assert auth.check_login("alice", "bad") is False
+    assert auth.check_login("nobody", "x") is False
+    auth.set_disabled("alice", True)
+    assert auth.check_login("alice", "pw1") is False
