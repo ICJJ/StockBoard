@@ -10,6 +10,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Load local secrets (gitignored): BASIC_AUTH_USER / BASIC_AUTH_PASSWORD
+[[ -f .env.trading ]] && set -a && . ./.env.trading && set +a
+
 TS="${TAILSCALE:-/Applications/Tailscale.app/Contents/MacOS/Tailscale}"
 
 # Site login (Basic Auth) — protects the public Funnel URL.

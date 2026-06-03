@@ -27,6 +27,11 @@ export default function BacktestPage() {
   const [cash, setCash] = useState(100000);
   const [commission, setCommission] = useState(1);
 
+  const [mode, setMode] = useState("single"); // single | sweep
+  const [grid, setGrid] = useState({}); // param -> csv string of values
+  const [sortBy, setSortBy] = useState("sharpe");
+  const [sweep, setSweep] = useState(null);
+
   const [backendUp, setBackendUp] = useState(null);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
@@ -48,8 +53,16 @@ export default function BacktestPage() {
   useEffect(() => {
     if (!current) return;
     const d = {};
-    current.params.forEach((p) => (d[p.name] = p.default));
+    const g = {};
+    current.params.forEach((p) => {
+      d[p.name] = p.default;
+      // sensible default sweep range around the default
+      g[p.name] = [p.default, Math.round(p.default * 1.5), p.default * 2]
+        .filter((v) => v >= p.min && v <= p.max)
+        .join(", ");
+    });
     setParams(d);
+    setGrid(g);
   }, [strategyId, strategies]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function run() {
@@ -72,6 +85,43 @@ export default function BacktestPage() {
     } finally {
       setRunning(false);
     }
+  }
+
+  async function runSweep() {
+    setRunning(true);
+    setError(null);
+    try {
+      const parsedGrid = {};
+      (current?.params || []).forEach((p) => {
+        parsedGrid[p.name] = String(grid[p.name] || "")
+          .split(",")
+          .map((s) => Number(s.trim()))
+          .filter((n) => !Number.isNaN(n));
+      });
+      const r = await tradingApi.sweep({
+        symbol,
+        strategy: strategyId,
+        grid: parsedGrid,
+        period,
+        bar,
+        initial_cash: Number(cash),
+        commission_bps: Number(commission),
+        sort_by: sortBy,
+      });
+      setSweep(r);
+    } catch (e) {
+      setError(e.message);
+      setSweep(null);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  // Load one sweep row's params into single mode and run it.
+  function loadCombo(p) {
+    setParams(p);
+    setMode("single");
+    setTimeout(run, 0);
   }
 
   const m = result?.metrics;
@@ -123,17 +173,45 @@ export default function BacktestPage() {
             </select>
           </label>
 
-          {current?.params.map((p) => (
-            <label className="bt-field" key={p.name}>
-              <span>{p.name}（{p.min}–{p.max}）</span>
-              <input className="search-input" type="number"
-                value={params[p.name] ?? p.default}
-                min={p.min} max={p.max}
-                onChange={(e) =>
-                  setParams((prev) => ({ ...prev, [p.name]: Number(e.target.value) }))
-                } />
-            </label>
-          ))}
+          <div className="bt-modes">
+            <button className={mode === "single" ? "active" : ""} onClick={() => setMode("single")}>单次回测</button>
+            <button className={mode === "sweep" ? "active" : ""} onClick={() => setMode("sweep")}>参数扫描</button>
+          </div>
+
+          {mode === "single"
+            ? current?.params.map((p) => (
+                <label className="bt-field" key={p.name}>
+                  <span>{p.name}（{p.min}–{p.max}）</span>
+                  <input className="search-input" type="number"
+                    value={params[p.name] ?? p.default}
+                    min={p.min} max={p.max}
+                    onChange={(e) =>
+                      setParams((prev) => ({ ...prev, [p.name]: Number(e.target.value) }))
+                    } />
+                </label>
+              ))
+            : (
+              <>
+                {current?.params.map((p) => (
+                  <label className="bt-field" key={p.name}>
+                    <span>{p.name} 值列表（逗号分隔）</span>
+                    <input className="search-input" value={grid[p.name] ?? ""}
+                      placeholder="例如 10, 20, 30"
+                      onChange={(e) => setGrid((prev) => ({ ...prev, [p.name]: e.target.value }))} />
+                  </label>
+                ))}
+                <label className="bt-field">
+                  <span>排序指标</span>
+                  <select className="search-input" value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}>
+                    <option value="sharpe">Sharpe（高→低）</option>
+                    <option value="total_return">总收益（高→低）</option>
+                    <option value="cagr">年化（高→低）</option>
+                    <option value="max_drawdown">回撤（小→大）</option>
+                  </select>
+                </label>
+              </>
+            )}
 
           <label className="bt-field">
             <span>区间</span>
@@ -164,8 +242,11 @@ export default function BacktestPage() {
             </label>
           </div>
 
-          <button className="bt-run" onClick={run} disabled={running || !backendUp}>
-            {running ? "回测中…" : "▶ 运行回测"}
+          <button className="bt-run" onClick={mode === "single" ? run : runSweep}
+            disabled={running || !backendUp}>
+            {running
+              ? (mode === "single" ? "回测中…" : "扫描中…")
+              : (mode === "single" ? "▶ 运行回测" : "▶ 运行扫描")}
           </button>
         </div>
 
@@ -173,7 +254,7 @@ export default function BacktestPage() {
         <div className="bt-results">
           {error && <div className="notice error">回测失败：{error}</div>}
 
-          {m && (
+          {mode === "single" && m && (
             <>
               <div className="bt-metrics">
                 <div className={`bt-metric ${m.total_return >= 0 ? "up" : "down"}`}>
@@ -195,8 +276,36 @@ export default function BacktestPage() {
             </>
           )}
 
-          {!m && !error && (
-            <div className="bt-chart-empty">设置参数后点「运行回测」</div>
+          {mode === "sweep" && sweep && (
+            <>
+              <p className="bt-foot" style={{ marginTop: 0, marginBottom: 10 }}>
+                {sweep.symbol} · {sweep.count} 组结果 · 按 {sweep.sort_by} 排序
+                {sweep.truncated ? "（已截断至前 200 组）" : ""} · 点行加载到单次回测
+              </p>
+              <table className="ptable">
+                <thead>
+                  <tr><th>参数</th><th>总收益</th><th>买入持有</th><th>Sharpe</th><th>最大回撤</th><th>交易</th></tr>
+                </thead>
+                <tbody>
+                  {sweep.results.map((r, i) => (
+                    <tr key={i} onClick={() => loadCombo(r.params)} style={{ cursor: "pointer" }}>
+                      <td className="psym">{Object.entries(r.params).map(([k, v]) => `${k}=${v}`).join(" ")}</td>
+                      <td className={r.metrics.total_return >= 0 ? "up" : "down"}>{pct(r.metrics.total_return)}</td>
+                      <td>{pct(r.metrics.buy_hold_return)}</td>
+                      <td>{r.metrics.sharpe}</td>
+                      <td className="down">{pct(r.metrics.max_drawdown)}</td>
+                      <td>{r.metrics.num_trades}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {((mode === "single" && !m) || (mode === "sweep" && !sweep)) && !error && (
+            <div className="bt-chart-empty">
+              {mode === "single" ? "设置参数后点「运行回测」" : "填写参数值列表后点「运行扫描」"}
+            </div>
           )}
         </div>
       </div>

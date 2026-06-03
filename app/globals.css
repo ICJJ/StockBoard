@@ -424,6 +424,47 @@ a {
   cursor: pointer;
 }
 .bt-run:disabled { opacity: 0.5; cursor: not-allowed; }
+.bt-modes { display: flex; gap: 6px; }
+.bt-modes button {
+  flex: 1;
+  padding: 7px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+.bt-modes button.active { color: var(--text); border-color: var(--accent); background: var(--bg-card-hover); }
+
+/* Order form */
+.order-card {
+  margin-top: 22px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+}
+.order-card h2 { font-size: 16px; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.order-tag {
+  font-size: 11px; font-weight: 600; color: var(--green);
+  background: var(--green-dim); padding: 3px 9px; border-radius: 999px;
+}
+.order-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.order-confirm { display: flex; flex-direction: column; gap: 10px; }
+.order-preview {
+  font-size: 14px; color: var(--text-dim);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px; padding: 11px 14px;
+}
+.order-msg { margin-top: 12px; font-size: 13px; padding: 10px 14px; border-radius: 10px; }
+.order-msg.ok { color: var(--green); background: var(--green-dim); }
+.order-msg.err { color: var(--red); background: var(--red-dim); }
 .bt-results {
   background: var(--bg-card);
   border: 1px solid var(--border);

@@ -15,6 +15,44 @@ export default function PaperPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Order form
+  const [ord, setOrd] = useState({ symbol: "AAPL", side: "BUY", quantity: 10, order_type: "MARKET", limit_price: "" });
+  const [preview, setPreview] = useState(null);
+  const [orderMsg, setOrderMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  function orderBody(dry) {
+    return {
+      symbol: ord.symbol.toUpperCase(),
+      side: ord.side,
+      quantity: Number(ord.quantity),
+      order_type: ord.order_type,
+      limit_price: ord.order_type === "LIMIT" ? Number(ord.limit_price) : null,
+      dry_run: dry,
+    };
+  }
+
+  async function doPreview() {
+    setBusy(true); setOrderMsg(null);
+    try {
+      setPreview(await tradingApi.paperOrder(orderBody(true)));
+    } catch (e) {
+      setOrderMsg({ ok: false, text: e.message }); setPreview(null);
+    } finally { setBusy(false); }
+  }
+
+  async function doSubmit() {
+    setBusy(true);
+    try {
+      const r = await tradingApi.paperOrder(orderBody(false));
+      setOrderMsg({ ok: true, text: `已提交模拟单 #${r.order_id}（${r.status}）` });
+      setPreview(null);
+      load();
+    } catch (e) {
+      setOrderMsg({ ok: false, text: e.message });
+    } finally { setBusy(false); }
+  }
+
   async function load() {
     setLoading(true);
     try {
@@ -93,6 +131,69 @@ export default function PaperPage() {
       ) : (
         !error && <div className="empty">模拟盘暂无持仓</div>
       )}
+
+      <div className="order-card">
+        <h2>模拟下单 <span className="order-tag">仅 DU* 模拟盘 · 真实账户被硬性拒绝</span></h2>
+        <div className="order-form">
+          <label className="bt-field">
+            <span>代码</span>
+            <input className="search-input" value={ord.symbol}
+              onChange={(e) => setOrd({ ...ord, symbol: e.target.value.toUpperCase() })} />
+          </label>
+          <label className="bt-field">
+            <span>方向</span>
+            <select className="search-input" value={ord.side}
+              onChange={(e) => setOrd({ ...ord, side: e.target.value })}>
+              <option value="BUY">买入 BUY</option>
+              <option value="SELL">卖出 SELL</option>
+            </select>
+          </label>
+          <label className="bt-field">
+            <span>数量(股)</span>
+            <input className="search-input" type="number" value={ord.quantity}
+              onChange={(e) => setOrd({ ...ord, quantity: e.target.value })} />
+          </label>
+          <label className="bt-field">
+            <span>类型</span>
+            <select className="search-input" value={ord.order_type}
+              onChange={(e) => setOrd({ ...ord, order_type: e.target.value })}>
+              <option value="MARKET">市价 MARKET</option>
+              <option value="LIMIT">限价 LIMIT</option>
+            </select>
+          </label>
+          {ord.order_type === "LIMIT" && (
+            <label className="bt-field">
+              <span>限价</span>
+              <input className="search-input" type="number" value={ord.limit_price}
+                onChange={(e) => setOrd({ ...ord, limit_price: e.target.value })} />
+            </label>
+          )}
+        </div>
+
+        {!preview ? (
+          <button className="bt-run" style={{ maxWidth: 220 }} onClick={doPreview} disabled={busy}>
+            {busy ? "…" : "预览(dry-run)"}
+          </button>
+        ) : (
+          <div className="order-confirm">
+            <div className="order-preview">
+              即将在 <b>{preview.account}</b> 下单:
+              <b className={preview.side === "BUY" ? "up" : "down"}> {preview.side} {preview.quantity} {preview.symbol}</b>
+              {" "}({preview.order_type}{preview.limit_price ? ` @ ${preview.limit_price}` : ""}, {preview.tif})
+            </div>
+            <div className="refresh-row">
+              <button className="bt-run" style={{ maxWidth: 200 }} onClick={doSubmit} disabled={busy}>
+                {busy ? "提交中…" : "✓ 确认下模拟单"}
+              </button>
+              <button className="refresh-btn" onClick={() => setPreview(null)}>取消</button>
+            </div>
+          </div>
+        )}
+
+        {orderMsg && (
+          <div className={`order-msg ${orderMsg.ok ? "ok" : "err"}`}>{orderMsg.text}</div>
+        )}
+      </div>
     </div>
   );
 }

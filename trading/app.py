@@ -8,9 +8,11 @@ Run:  ./.venv-trading/bin/uvicorn trading.app:app --reload --port 8000
 
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import pathlib
+from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -119,3 +121,80 @@ def backtest(req: BacktestReq, _=Depends(require_auth)):
     result["symbol"] = req.symbol.upper()
     result["period"] = req.period
     return result
+
+
+class SweepReq(BaseModel):
+    symbol: str
+    strategy: str = "sma_cross"
+    grid: dict = {}  # e.g. {"fast": [10,20], "slow": [50,100,200]}
+    period: str = "1Y"
+    bar: str = "1d"
+    initial_cash: float = 100_000.0
+    commission_bps: float = 1.0
+    sort_by: str = "sharpe"
+
+
+@app.post("/backtest/sweep")
+def backtest_sweep(req: SweepReq, _=Depends(require_auth)):
+    """Run the strategy across a grid of parameter combinations (data fetched
+    once, reused). Returns results sorted by the chosen metric."""
+    try:
+        df = ib_client.get_historical(req.symbol, req.period, req.bar)
+    except Exception as e:
+        raise HTTPException(503, f"historical data failed: {e}")
+
+    keys = list(req.grid.keys())
+    value_lists = [req.grid[k] for k in keys] if keys else [[]]
+    combos = list(itertools.product(*value_lists)) if keys else [()]
+
+    CAP = 200
+    truncated = len(combos) > CAP
+    combos = combos[:CAP]
+
+    results = []
+    for combo in combos:
+        params = dict(zip(keys, combo))
+        try:
+            r = run_backtest(df, req.strategy, params,
+                             initial_cash=req.initial_cash,
+                             commission_bps=req.commission_bps)
+            results.append({"params": params, "metrics": r["metrics"]})
+        except Exception:
+            continue
+
+    results.sort(key=lambda x: x["metrics"].get(req.sort_by, 0), reverse=True)
+    return {
+        "symbol": req.symbol.upper(),
+        "strategy": req.strategy,
+        "sort_by": req.sort_by,
+        "count": len(results),
+        "truncated": truncated,
+        "results": results,
+    }
+
+
+class OrderReq(BaseModel):
+    symbol: str
+    side: str             # BUY / SELL
+    quantity: float
+    order_type: str = "MARKET"  # MARKET / LIMIT
+    limit_price: Optional[float] = None
+    tif: str = "DAY"
+    dry_run: bool = True  # preview by default; must be explicitly set false
+
+
+@app.post("/paper/order")
+def paper_order(req: OrderReq, _=Depends(require_auth)):
+    """Place a SIMULATED order on the paper account. Hard-guarded to DU*
+    accounts; dry_run by default. There is intentionally no live-account path."""
+    try:
+        return ib_client.place_paper_order(
+            req.symbol, req.side, req.quantity, req.order_type,
+            req.limit_price, req.tif, req.dry_run,
+        )
+    except ib_client.NotPaperAccount as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(503, f"order failed: {e}")

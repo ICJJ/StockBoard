@@ -13,7 +13,7 @@ import threading
 from contextlib import contextmanager
 
 import pandas as pd
-from ib_insync import IB, Stock
+from ib_insync import IB, LimitOrder, MarketOrder, Stock
 
 HOST = "127.0.0.1"
 PORT = 7497  # TWS paper default
@@ -85,6 +85,57 @@ def get_positions() -> list[dict]:
                     "unrealized_pnl": None, "realized_pnl": None,
                 })
         return sorted(out, key=lambda x: -abs(x.get("market_value") or 0))
+
+
+class NotPaperAccount(Exception):
+    """Raised when an order would target a non-paper (non-DU*) account."""
+
+
+def place_paper_order(symbol, side, quantity, order_type="MARKET",
+                      limit_price=None, tif="DAY", dry_run=True) -> dict:
+    """Place a SIMULATED order on the paper account.
+
+    Hard safety guard: refuses unless the connected account id starts with
+    'DU' (IBKR paper). dry_run=True (default) only previews, never submits.
+    """
+    side = side.upper()
+    order_type = order_type.upper()
+    if side not in ("BUY", "SELL"):
+        raise ValueError("side must be BUY or SELL")
+    if quantity <= 0:
+        raise ValueError("quantity must be > 0")
+
+    with ib_session() as ib:
+        acct = ib.managedAccounts()[0] if ib.managedAccounts() else ""
+        if not acct.startswith("DU"):
+            raise NotPaperAccount(
+                f"refusing order: connected account '{acct}' is NOT a paper (DU*) account"
+            )
+
+        contract = Stock(symbol.upper(), "SMART", "USD")
+        ib.qualifyContracts(contract)
+
+        if order_type == "LIMIT":
+            if limit_price is None:
+                raise ValueError("limit_price required for LIMIT orders")
+            order = LimitOrder(side, quantity, float(limit_price), tif=tif)
+        else:
+            order = MarketOrder(side, quantity, tif=tif)
+
+        info = {
+            "account": acct, "symbol": symbol.upper(), "side": side,
+            "quantity": quantity, "order_type": order_type,
+            "limit_price": limit_price, "tif": tif, "dry_run": dry_run,
+        }
+        if dry_run:
+            info["preview"] = "未提交（dry-run）。确认后将以上述参数下模拟单。"
+            return info
+
+        trade = ib.placeOrder(contract, order)
+        ib.sleep(1.5)
+        info["order_id"] = trade.order.orderId
+        info["status"] = trade.orderStatus.status
+        return info
 
 
 _DUR = {
