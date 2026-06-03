@@ -72,6 +72,31 @@ def feedback_tally(question_id: int) -> dict:
         con.close()
 
 
+def prune_flagged(min_remove: int = 3) -> list:
+    """Retire active questions the community clearly rejected:
+    remove votes >= min_remove AND remove > keep. Returns the retired ids."""
+    con = quiz_db.connect()
+    try:
+        active_ids = [r["id"] for r in con.execute(
+            "SELECT id FROM questions WHERE status='active' ORDER BY id")]
+    finally:
+        con.close()
+    retired = []
+    for qid in active_ids:
+        tally = feedback_tally(qid)
+        removes = tally.get("remove", 0)
+        keeps = tally.get("keep", 0)
+        if removes >= min_remove and removes > keeps:
+            con = quiz_db.connect()
+            try:
+                con.execute("UPDATE questions SET status='retired' WHERE id=?", (qid,))
+                con.commit()
+            finally:
+                con.close()
+            retired.append(qid)
+    return retired
+
+
 import hashlib
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
