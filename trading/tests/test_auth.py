@@ -31,3 +31,25 @@ def test_user_store(quiz_db):
     assert auth.check_login("nobody", "x") is False
     auth.set_disabled("alice", True)
     assert auth.check_login("alice", "pw1") is False
+
+
+def test_list_users_excludes_password_hash(quiz_db):
+    from trading import auth
+    auth.create_user("alice", "pw1")
+    rows = auth.list_users()
+    assert rows and "password_hash" not in rows[0]
+
+
+def test_session_rejected_under_different_secret(monkeypatch):
+    from trading import auth
+    monkeypatch.setenv("SESSION_SECRET", "secretA")
+    tok = auth.make_session("icjj")
+    monkeypatch.setenv("SESSION_SECRET", "secretB")
+    assert auth.read_session(tok) is None
+
+
+def test_get_user_excludes_password_hash(quiz_db):
+    from trading import auth
+    auth.create_user("bob", "pw")
+    u = auth.get_user("bob")
+    assert u and "password_hash" not in u

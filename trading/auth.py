@@ -1,8 +1,15 @@
 """Auth primitives: password hashing, signed-cookie sessions, user store."""
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import os
+
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, InvalidHashError
+from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
+
+from . import quiz_db
 
 _ph = PasswordHasher()
 
@@ -14,18 +21,15 @@ def hash_password(plain: str) -> str:
 def verify_password(hashed: str, plain: str) -> bool:
     try:
         return _ph.verify(hashed, plain)
-    except (VerifyMismatchError, InvalidHashError):
+    except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
 
 
-import base64
-import hashlib
-import hmac
-import os
-
-
 def _secret() -> bytes:
-    return os.environ.get("SESSION_SECRET", "").encode()
+    s = os.environ.get("SESSION_SECRET", "")
+    if not s:
+        raise RuntimeError("SESSION_SECRET environment variable must be set")
+    return s.encode()
 
 
 def _b64(b: bytes) -> str:
@@ -56,9 +60,6 @@ def read_session(token: str) -> str | None:
         return None
 
 
-from . import quiz_db
-
-
 def create_user(username: str, password: str, is_admin: bool = False) -> None:
     con = quiz_db.connect()
     try:
@@ -74,17 +75,24 @@ def create_user(username: str, password: str, is_admin: bool = False) -> None:
 def get_user(username: str):
     con = quiz_db.connect()
     try:
-        row = con.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+        row = con.execute(
+            "SELECT id, username, is_admin, disabled, created_at FROM users WHERE username=?",
+            (username,)).fetchone()
         return dict(row) if row else None
     finally:
         con.close()
 
 
 def check_login(username: str, password: str) -> bool:
-    u = get_user(username)
-    if not u or u["disabled"]:
+    con = quiz_db.connect()
+    try:
+        row = con.execute(
+            "SELECT password_hash, disabled FROM users WHERE username=?", (username,)).fetchone()
+    finally:
+        con.close()
+    if not row or row["disabled"]:
         return False
-    return verify_password(u["password_hash"], password)
+    return verify_password(row["password_hash"], password)
 
 
 def set_disabled(username: str, disabled: bool) -> None:
