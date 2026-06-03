@@ -31,6 +31,8 @@ export default function BacktestPage() {
   const [grid, setGrid] = useState({}); // param -> csv string of values
   const [sortBy, setSortBy] = useState("sharpe");
   const [sweep, setSweep] = useState(null);
+  const [valid, setValid] = useState(null);
+  const [validating, setValidating] = useState(false);
 
   const [backendUp, setBackendUp] = useState(null);
   const [running, setRunning] = useState(false);
@@ -68,6 +70,7 @@ export default function BacktestPage() {
   async function run() {
     setRunning(true);
     setError(null);
+    setValid(null);
     try {
       const r = await tradingApi.backtest({
         symbol,
@@ -122,6 +125,22 @@ export default function BacktestPage() {
     setParams(p);
     setMode("single");
     setTimeout(run, 0);
+  }
+
+  async function runValidate() {
+    setValidating(true);
+    setValid(null);
+    try {
+      setValid(await tradingApi.validate({
+        symbol, strategy: strategyId, params,
+        period: period === "1M" || period === "3M" ? "1Y" : period,
+        bar, commission_bps: Number(commission),
+      }));
+    } catch (e) {
+      setValid({ error: e.message });
+    } finally {
+      setValidating(false);
+    }
   }
 
   const m = result?.metrics;
@@ -273,6 +292,40 @@ export default function BacktestPage() {
                 {result.symbol} · {result.period} · {m.bars} 根 · 终值 ${m.final_equity.toLocaleString()}
                 <br />⚠️ 历史回测不代表未来表现，仅供研究，非投资建议。
               </p>
+
+              <button className="refresh-btn" onClick={runValidate} disabled={validating}
+                style={{ marginTop: 4 }}>
+                {validating ? "校验中…" : "🔬 校验稳健性（样本外 + 随机对照）"}
+              </button>
+              {valid && !valid.error && (
+                <div className="bt-validate">
+                  <div className="bt-vrow">
+                    <span>样本内 Sharpe</span><b>{valid.in_sample.sharpe}</b>
+                    <span>样本外 Sharpe</span>
+                    <b className={valid.verdict.overfit ? "down" : "up"}>{valid.out_of_sample.sharpe}</b>
+                  </div>
+                  <div className="bt-vrow">
+                    <span>策略收益</span><b>{pct(valid.random_control.strategy_return)}</b>
+                    <span>随机同敞口(中位)</span><b>{pct(valid.random_control.median_return)}</b>
+                  </div>
+                  <div className="bt-vrow">
+                    <span>跑赢随机比例</span>
+                    <b className={valid.verdict.beats_random ? "up" : "down"}>
+                      {(valid.random_control.percentile * 100).toFixed(0)}%
+                    </b>
+                    <span>择时超额</span>
+                    <b className={valid.random_control.edge_vs_random >= 0 ? "up" : "down"}>
+                      {pct(valid.random_control.edge_vs_random)}
+                    </b>
+                  </div>
+                  {valid.verdict.notes.map((nt, i) => (
+                    <p key={i} className={`bt-vnote ${valid.verdict.overfit || !valid.verdict.beats_random ? "warn" : "ok"}`}>
+                      {valid.verdict.overfit || !valid.verdict.beats_random ? "⚠️ " : "✓ "}{nt}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {valid?.error && <div className="card-error">校验失败：{valid.error}</div>}
             </>
           )}
 

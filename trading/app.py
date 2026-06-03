@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from . import ib_client
-from .backtest import STRATEGIES, run_backtest
+from .backtest import STRATEGIES, run_backtest, validate_strategy
 
 app = FastAPI(title="StockBoard Trading Backend", version="0.1.0")
 
@@ -171,6 +171,33 @@ def backtest_sweep(req: SweepReq, _=Depends(require_auth)):
         "truncated": truncated,
         "results": results,
     }
+
+
+class ValidateReq(BaseModel):
+    symbol: str
+    strategy: str = "sma_cross"
+    params: dict = {}
+    period: str = "2Y"
+    bar: str = "1d"
+    commission_bps: float = 1.0
+    oos_frac: float = 0.3
+
+
+@app.post("/backtest/validate")
+def backtest_validate(req: ValidateReq, _=Depends(require_auth)):
+    """OOS + random-control robustness check (separates timing alpha from beta)."""
+    try:
+        df = ib_client.get_historical(req.symbol, req.period, req.bar)
+    except Exception as e:
+        raise HTTPException(503, f"historical data failed: {e}")
+    try:
+        r = validate_strategy(df, req.strategy, req.params,
+                              commission_bps=req.commission_bps, oos_frac=req.oos_frac)
+        r["symbol"] = req.symbol.upper()
+        r["period"] = req.period
+        return r
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 class OrderReq(BaseModel):

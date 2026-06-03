@@ -437,6 +437,30 @@ a {
 }
 .bt-modes button.active { color: var(--text); border-color: var(--accent); background: var(--bg-card-hover); }
 
+/* Validation panel */
+.bt-validate {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--bg);
+}
+.bt-vrow {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  gap: 4px 10px;
+  align-items: center;
+  font-size: 13px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.bt-vrow:last-of-type { border-bottom: none; }
+.bt-vrow span { color: var(--text-dim); }
+.bt-vrow b { color: var(--text); text-align: right; }
+.bt-vnote { font-size: 12px; margin-top: 8px; line-height: 1.5; }
+.bt-vnote.ok { color: var(--green); }
+.bt-vnote.warn { color: #e0a73a; }
+
 /* Order form */
 .order-card {
   margin-top: 22px;

@@ -155,13 +155,25 @@ def get_historical(symbol: str, period: str = "1Y", bar: str = "1d") -> pd.DataF
         ib.reqMarketDataType(3)  # delayed if no live subscription
         contract = Stock(symbol.upper(), "SMART", "USD")
         ib.qualifyContracts(contract)
-        bars = ib.reqHistoricalData(
-            contract, endDateTime="", durationStr=duration,
-            barSizeSetting=bar_size, whatToShow="TRADES",
-            useRTH=True, formatDate=1,
-        )
+        # Paper / unsubscribed accounts sometimes return nothing for TRADES;
+        # fall back through other data types (and one retry each) before failing.
+        bars = None
+        for what in ("TRADES", "ADJUSTED_LAST", "MIDPOINT"):
+            for _ in range(2):
+                bars = ib.reqHistoricalData(
+                    contract, endDateTime="", durationStr=duration,
+                    barSizeSetting=bar_size, whatToShow=what,
+                    useRTH=True, formatDate=1,
+                )
+                if bars:
+                    break
+            if bars:
+                break
         if not bars:
-            raise RuntimeError(f"no historical data for {symbol}")
+            raise RuntimeError(
+                f"no historical data for {symbol} "
+                "(check TWS → Data → market data farm connection / subscriptions)"
+            )
         df = pd.DataFrame(
             [{"date": b.date, "open": b.open, "high": b.high,
               "low": b.low, "close": b.close, "volume": b.volume} for b in bars]

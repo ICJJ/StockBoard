@@ -128,3 +128,95 @@ def run_backtest(
         "equity_curve": pts(equity),
         "buy_hold_curve": pts(bh_equity),
     }
+
+
+def _seg_metrics(strat_ret: pd.Series, periods_per_year: int) -> dict:
+    """Total return + Sharpe for a segment of per-bar strategy returns."""
+    if len(strat_ret) == 0:
+        return {"total_return": 0.0, "sharpe": 0.0, "bars": 0}
+    total = float((1 + strat_ret).prod() - 1)
+    vol = strat_ret.std() * np.sqrt(periods_per_year)
+    sharpe = float((strat_ret.mean() * periods_per_year) / vol) if vol > 0 else 0.0
+    return {"total_return": round(total, 4), "sharpe": round(sharpe, 3), "bars": int(len(strat_ret))}
+
+
+def validate_strategy(
+    df: pd.DataFrame,
+    strategy: str,
+    params: dict | None = None,
+    commission_bps: float = 1.0,
+    oos_frac: float = 0.3,
+    n_random: int = 300,
+    seed: int = 1234,
+    periods_per_year: int = 252,
+) -> dict:
+    """Robustness checks borrowed from Vibe-Trading's alpha-bench idea:
+
+    1. Out-of-sample split — positions are computed on the FULL series (so
+       indicators keep their warmup), then returns are sliced into in-sample
+       (first 1-oos_frac) and out-of-sample (last oos_frac). A strategy that
+       only works in-sample is overfit.
+    2. Exposure-matched random control — N random portfolios that are long the
+       SAME fraction of bars as the strategy, but at random times. Their return
+       distribution is the market beta you'd get from that exposure alone; the
+       strategy must clearly beat it to claim genuine timing alpha.
+    """
+    if strategy not in STRATEGIES:
+        raise ValueError(f"unknown strategy '{strategy}'")
+    params = params or {}
+    target = STRATEGIES[strategy]["fn"](df, **params).clip(0, 1)
+    pos = target.shift(1).fillna(0.0)
+    ret = df["close"].pct_change().fillna(0.0)
+    cost = pos.diff().abs().fillna(pos.abs()) * (commission_bps / 10_000.0)
+    strat_ret = pos * ret - cost
+
+    n = len(strat_ret)
+    split = int(n * (1 - oos_frac))
+    is_seg = _seg_metrics(strat_ret.iloc[:split], periods_per_year)
+    oos_seg = _seg_metrics(strat_ret.iloc[split:], periods_per_year)
+    full_tr = float((1 + strat_ret).prod() - 1)
+
+    # Exposure-matched random control (vectorized).
+    exposure = float((pos > 0).mean())
+    k = int(round(exposure * n))
+    R = ret.values
+    rng = np.random.default_rng(seed)
+    if 0 < k < n:
+        M = np.zeros((n_random, n))
+        for i in range(n_random):
+            M[i, rng.choice(n, size=k, replace=False)] = 1.0
+        rand_tr = np.prod(1 + M * R, axis=1) - 1.0
+    else:
+        rand_tr = np.zeros(n_random)
+    rand_median = float(np.median(rand_tr))
+    rand_p95 = float(np.percentile(rand_tr, 95))
+    percentile = float((rand_tr < full_tr).mean())  # share of random the strat beats
+
+    is_sh, oos_sh = is_seg["sharpe"], oos_seg["sharpe"]
+    overfit = bool(is_sh > 0.3 and (oos_sh < 0 or oos_sh < 0.4 * is_sh))
+    beats_random = bool(percentile >= 0.95)
+    notes = []
+    if overfit:
+        notes.append(f"样本外 Sharpe({oos_sh}) 远低于样本内({is_sh})——疑似过拟合")
+    if not beats_random:
+        notes.append(f"未明显跑赢同敞口随机组合(仅胜过 {percentile:.0%})——收益可能主要来自市场 beta 而非择时")
+    if not notes:
+        notes.append("通过:样本外稳健且明显跑赢随机对照")
+
+    return {
+        "strategy": strategy,
+        "params": params,
+        "full_total_return": round(full_tr, 4),
+        "in_sample": is_seg,
+        "out_of_sample": oos_seg,
+        "random_control": {
+            "exposure": round(exposure, 3),
+            "n": n_random,
+            "median_return": round(rand_median, 4),
+            "p95_return": round(rand_p95, 4),
+            "strategy_return": round(full_tr, 4),
+            "percentile": round(percentile, 3),
+            "edge_vs_random": round(full_tr - rand_median, 4),
+        },
+        "verdict": {"overfit": overfit, "beats_random": beats_random, "notes": notes},
+    }
