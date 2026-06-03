@@ -27,3 +27,20 @@ def test_seed_financeiq_inserts_normalized(quiz_db):
     assert quiz.count_active() == 1
     q = quiz.get_question(1)
     assert q["subject"] == "证券从业" and q["options"] == ["甲", "乙", "丙", "丁"]
+
+
+def test_add_authored_validates(quiz_db):
+    from trading import quiz
+    items = [
+        {"prompt": "good", "options": ["a", "b", "c", "d"], "correct_index": 2, "explanation": "x", "subject": "markets"},
+        {"prompt": "", "options": ["a", "b"], "correct_index": 0},
+        {"prompt": "bad idx", "options": ["a", "b"], "correct_index": 5},
+        {"prompt": "one opt", "options": ["a"], "correct_index": 0},
+    ]
+    n = quiz.add_authored(items)
+    assert n == 1
+    assert quiz.count_active() == 1
+    con = quiz.quiz_db.connect()
+    src = con.execute("SELECT source FROM questions WHERE prompt='good'").fetchone()["source"]
+    con.close()
+    assert src == "claude"

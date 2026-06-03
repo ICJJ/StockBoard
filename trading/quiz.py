@@ -207,6 +207,24 @@ def user_stats(user_id: int) -> dict:
     }
 
 
+def add_authored(questions: list) -> int:
+    """Insert original Claude-authored MCQs (source='claude', active). Validates each;
+    skips malformed. Returns count inserted."""
+    n = 0
+    for q in questions or []:
+        prompt = (q.get("prompt") or "").strip()
+        options = q.get("options")
+        ci = q.get("correct_index")
+        if not (prompt and isinstance(options, list) and len(options) >= 2
+                and isinstance(ci, int) and 0 <= ci < len(options)):
+            continue
+        add_question(prompt, options, ci,
+                     explanation=q.get("explanation", ""),
+                     subject=q.get("subject", "claude"), source="claude")
+        n += 1
+    return n
+
+
 def leaderboard() -> list:
     con = quiz_db.connect()
     try:
