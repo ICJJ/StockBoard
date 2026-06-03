@@ -23,3 +23,13 @@ def test_question_store(quiz_db):
     assert q["correct_index"] == 1
     quiz.add_question("x", ["a", "b", "c", "d"], 0, status="retired")
     assert quiz.count_active() == 1
+
+
+def test_feedback_upsert_and_tally(quiz_db):
+    from trading import quiz
+    qid = quiz.add_question("q", ["a", "b", "c", "d"], 0)
+    quiz.record_feedback(user_id=1, question_id=qid, vote="remove", reason="too hard")
+    quiz.record_feedback(user_id=2, question_id=qid, vote="remove")
+    quiz.record_feedback(user_id=1, question_id=qid, vote="keep")
+    tally = quiz.feedback_tally(qid)
+    assert tally == {"keep": 1, "remove": 1}
