@@ -61,3 +61,27 @@ def test_user_stats_and_leaderboard(quiz_db):
     assert sa["days_played"] == 1 and sb["days_played"] == 1
     lb = quiz.leaderboard()
     assert lb[0]["username"] == "alice" and lb[0]["points"] == 1
+
+
+def test_quiz_endpoints(client):
+    from trading import quiz
+    qid = quiz.add_question("2+2?", ["3", "4", "5", "6"], 1, explanation="正确答案:4")
+    assert client.get("/quiz/today").status_code == 401          # gated
+    client.post("/auth/login", json={"username": "icjj", "password": "pw"})  # bootstrap admin
+    t = client.get("/quiz/today").json()
+    assert t["id"] == qid and t["options"] == ["3", "4", "5", "6"]
+    assert "correct_index" not in t                              # never leak the answer
+    assert client.get("/quiz/state").status_code == 200
+    w = client.post("/quiz/answer", json={"question_id": qid, "choice_index": 0}).json()
+    assert w["correct"] is False and w["correct_index"] == 1 and w["explanation"]
+    c = client.post("/quiz/answer", json={"question_id": qid, "choice_index": 1}).json()
+    assert c["correct"] is True and c["entered"] is True
+    assert client.get("/quiz/state").json()["entered_today"] is True
+    lb = client.get("/quiz/leaderboard").json()["leaderboard"]
+    assert any(u["username"] == "icjj" for u in lb)
+
+
+def test_quiz_today_fail_open_when_empty(client):
+    client.post("/auth/login", json={"username": "icjj", "password": "pw"})
+    r = client.get("/quiz/today").json()
+    assert r["available"] is False

@@ -135,6 +135,37 @@ def quiz_feedback(req: FeedbackReq, user=Depends(current_user)):
     return {"ok": True}
 
 
+class AnswerReq(BaseModel):
+    question_id: int
+    choice_index: int
+
+
+@app.get("/quiz/today")
+def quiz_today(user=Depends(current_user)):
+    q = quiz.daily_question()
+    if not q:
+        return {"available": False}              # fail-open: frontend lets the user in
+    return {"available": True, "id": q["id"], "prompt": q["prompt"], "options": q["options"]}
+
+
+@app.get("/quiz/state")
+def quiz_state(user=Depends(current_user)):
+    return quiz.day_state(user["id"])
+
+
+@app.post("/quiz/answer")
+def quiz_answer(req: AnswerReq, user=Depends(current_user)):
+    try:
+        return quiz.record_attempt(user["id"], req.question_id, req.choice_index)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/quiz/leaderboard")
+def quiz_leaderboard(user=Depends(current_user)):
+    return {"leaderboard": quiz.leaderboard()}
+
+
 # CORS: allow the deployed frontend origin too, configurable via env.
 _origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
 _extra = os.environ.get("FRONTEND_ORIGIN")
