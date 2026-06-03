@@ -14,14 +14,25 @@ import os
 import pathlib
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import ib_client
+from . import auth, ib_client, quiz_db
 from .backtest import STRATEGIES, run_backtest, validate_strategy
 
 app = FastAPI(title="StockBoard Trading Backend", version="0.1.0")
+
+quiz_db.init_db()
+
+# Seed admin icjj once, if ADMIN_INIT_PASSWORD is set and icjj is absent.
+_admin_pw = os.environ.get("ADMIN_INIT_PASSWORD")
+if _admin_pw and not auth.get_user("icjj"):
+    auth.create_user("icjj", _admin_pw, is_admin=True)
+
+_COOKIE = "sb_session"
+_COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1").lower() not in ("0", "false", "no")
+_COOKIE_KW = dict(httponly=True, samesite="lax", secure=_COOKIE_SECURE, max_age=315360000, path="/")
 
 # Optional bearer-token auth. Off when TRADING_API_TOKEN is unset (local dev);
 # REQUIRED before exposing this backend to the internet.
@@ -33,6 +44,82 @@ def require_auth(authorization: str = Header(default="")):
         return  # auth disabled (local only)
     if authorization != f"Bearer {_TOKEN}":
         raise HTTPException(401, "unauthorized")
+
+
+class LoginReq(BaseModel):
+    username: str
+    password: str
+
+
+def current_user(sb_session: str = Cookie(default="")):
+    username = auth.read_session(sb_session)
+    if not username:
+        raise HTTPException(401, "not logged in")
+    u = auth.get_user(username)
+    if not u or u["disabled"]:
+        raise HTTPException(401, "account unavailable")
+    return u
+
+
+def require_admin(user=Depends(current_user)):
+    if not user["is_admin"]:
+        raise HTTPException(403, "admin only")
+    return user
+
+
+@app.post("/auth/login")
+def login(req: LoginReq, response: Response):
+    if not auth.check_login(req.username, req.password):
+        raise HTTPException(401, "invalid credentials")
+    response.set_cookie(_COOKIE, auth.make_session(req.username), **_COOKIE_KW)
+    u = auth.get_user(req.username)
+    return {"username": u["username"], "is_admin": bool(u["is_admin"])}
+
+
+@app.post("/auth/logout")
+def logout(response: Response):
+    response.delete_cookie(_COOKIE, path="/")
+    return {"ok": True}
+
+
+@app.get("/auth/me")
+def me(user=Depends(current_user)):
+    return {"username": user["username"], "is_admin": bool(user["is_admin"])}
+
+
+class NewUserReq(BaseModel):
+    username: str
+    password: str
+    is_admin: bool = False
+
+
+class PatchUserReq(BaseModel):
+    disabled: Optional[bool] = None
+    new_password: Optional[str] = None
+
+
+@app.get("/auth/users")
+def admin_list_users(_=Depends(require_admin)):
+    return {"users": auth.list_users()}
+
+
+@app.post("/auth/users")
+def admin_add_user(req: NewUserReq, _=Depends(require_admin)):
+    if auth.get_user(req.username):
+        raise HTTPException(409, "user exists")
+    auth.create_user(req.username, req.password, req.is_admin)
+    return {"ok": True}
+
+
+@app.patch("/auth/users/{username}")
+def admin_patch_user(username: str, req: PatchUserReq, _=Depends(require_admin)):
+    if not auth.get_user(username):
+        raise HTTPException(404, "no such user")
+    if req.disabled is not None:
+        auth.set_disabled(username, req.disabled)
+    if req.new_password:
+        auth.set_password(username, req.new_password)
+    return {"ok": True}
 
 
 # CORS: allow the deployed frontend origin too, configurable via env.

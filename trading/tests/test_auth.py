@@ -53,3 +53,41 @@ def test_get_user_excludes_password_hash(quiz_db):
     auth.create_user("bob", "pw")
     u = auth.get_user("bob")
     assert u and "password_hash" not in u
+
+
+def test_login_sets_cookie_and_me(client):
+    from trading import auth
+    auth.create_user("bob", "pw", is_admin=False)
+    r = client.post("/auth/login", json={"username": "bob", "password": "pw"})
+    assert r.status_code == 200
+    assert "sb_session" in r.cookies
+    me = client.get("/auth/me")
+    assert me.status_code == 200 and me.json()["username"] == "bob"
+
+
+def test_login_bad_password_401(client):
+    from trading import auth
+    auth.create_user("bob", "pw")
+    r = client.post("/auth/login", json={"username": "bob", "password": "nope"})
+    assert r.status_code == 401
+
+
+def test_admin_icjj_seeded(client):
+    r = client.post("/auth/login", json={"username": "icjj", "password": "adminpw"})
+    assert r.status_code == 200 and r.json().get("is_admin") in (True, 1)
+
+
+def test_admin_can_add_and_disable_users(client):
+    client.post("/auth/login", json={"username": "icjj", "password": "adminpw"})
+    r = client.post("/auth/users", json={"username": "carol", "password": "pw"})
+    assert r.status_code == 200
+    assert any(u["username"] == "carol" for u in client.get("/auth/users").json()["users"])
+    assert client.patch("/auth/users/carol", json={"disabled": True}).status_code == 200
+
+
+def test_non_admin_cannot_add_users(client):
+    from trading import auth
+    auth.create_user("dave", "pw")
+    client.post("/auth/login", json={"username": "dave", "password": "pw"})
+    client.post("/auth/login", json={"username": "dave", "password": "pw"})
+    assert client.post("/auth/users", json={"username": "x", "password": "y"}).status_code == 403

@@ -8,6 +8,8 @@ def quiz_db(tmp_path, monkeypatch):
     db = tmp_path / "quiz.db"
     monkeypatch.setenv("QUIZ_DB", str(db))
     monkeypatch.setenv("SESSION_SECRET", "test-secret-please-change")
+    monkeypatch.setenv("ADMIN_INIT_PASSWORD", "adminpw")
+    monkeypatch.setenv("COOKIE_SECURE", "0")
     # import lazily so env is set before module import
     import importlib
     from trading import quiz_db as qdb
