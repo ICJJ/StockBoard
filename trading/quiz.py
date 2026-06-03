@@ -70,3 +70,28 @@ def feedback_tally(question_id: int) -> dict:
         return {r["vote"]: r["c"] for r in rows}
     finally:
         con.close()
+
+
+import hashlib
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+
+def today_et() -> str:
+    """Current quiz date (YYYY-MM-DD) in America/New_York."""
+    return datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+
+
+def daily_question(quiz_date: str | None = None):
+    """Same active question for everyone on a given ET date. None if pool empty."""
+    quiz_date = quiz_date or today_et()
+    con = quiz_db.connect()
+    try:
+        ids = [r["id"] for r in con.execute(
+            "SELECT id FROM questions WHERE status='active' ORDER BY id")]
+    finally:
+        con.close()
+    if not ids:
+        return None
+    idx = int(hashlib.sha256(quiz_date.encode()).hexdigest(), 16) % len(ids)
+    return get_question(ids[idx])
