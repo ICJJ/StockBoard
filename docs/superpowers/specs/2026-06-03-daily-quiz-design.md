@@ -11,7 +11,7 @@ Gate the StockBoard board behind a **daily capital-markets multiple-choice quest
 
 1. **Identity**: per-user accounts; `icjj` is admin; **allowlist only** (admin provisions accounts, no public signup); hashed passwords; persistent "remember me" sessions (no practical expiry).
 2. **Storage/deployment**: FastAPI + **SQLite**, runs on the **funnel app** only. Vercel stays the Basic-Auth board mirror with quiz disabled.
-3. **Question bank**: professional-grade; **seed = MMLU professional subsets** (MIT, verified answers); a **scheduled Claude task** updates/prunes; **per-question user feedback** ("too professional → keep/remove") drives pruning.
+3. **Question bank**: professional-grade; **seed = MMLU professional subsets** (MIT, verified answers); a **scheduled Claude task** that only **selects/filters verified-source questions and prunes** — it does **NOT author/draft** questions; selected questions go live directly. **Per-question user feedback** ("too professional → keep/remove") drives pruning.
 4. **Scoring**: **first-attempt** correctness scores; **streak** (consecutive days) + **cumulative** correct; **leaderboard** across accounts.
 5. **Gate**: hard — must answer correctly to enter; wrong → reveal answer + retry; **one question/day, same for all users**.
 
@@ -19,13 +19,13 @@ Gate the StockBoard board behind a **daily capital-markets multiple-choice quest
 
 - **Frontend (Next.js, funnel + Vercel shared code)**: `/login`, daily quiz gate (`/quiz`), board (`/`), `/leaderboard`, `/admin` (admin only). New `lib/quizApi.js`. `middleware.js` updated to switch auth mode by env.
 - **Backend (FastAPI, funnel only)**: new `trading/quiz.py` (models + logic), endpoints under `/auth/*` and `/quiz/*`, SQLite `trading/quiz.db`. One-time `trading/seed_questions.py`. Reached from Next via the existing `/api/trading/[...path]` proxy.
-- **Scheduled maintenance**: a scheduled-tasks entry running Claude (weekly) to prune + top-up.
+- **Scheduled maintenance**: a scheduled-tasks entry running Claude (weekly) to **select/top-up from the verified source + prune** — no question drafting.
 - **Env**: `QUIZ_ENABLED=1` (funnel only), `SESSION_SECRET` (HMAC key), `QUIZ_DB` path. On Vercel `QUIZ_ENABLED` is unset → Basic Auth path unchanged.
 
 ## 4. Data model (SQLite)
 
 - `users(id, username UNIQUE, password_hash, is_admin BOOL, disabled BOOL, created_at)` — argon2 hash. `icjj` seeded admin.
-- `questions(id, prompt, options_json, correct_index, explanation, subject, source ENUM(mmlu|admin|review), status ENUM(active|retired|pending_review), difficulty, created_at)`.
+- `questions(id, prompt, options_json, correct_index, explanation, subject, source ENUM(mmlu|admin), status ENUM(active|retired), difficulty, created_at)`.
 - `attempts(id, user_id, question_id, quiz_date, first_try_correct BOOL, entered BOOL, attempts_count, created_at)` — unique `(user_id, quiz_date)`.
 - `question_feedback(id, user_id, question_id, vote ENUM(keep|remove), reason, created_at)` — unique `(user_id, question_id)`.
 
@@ -59,10 +59,9 @@ Gate the StockBoard board behind a **daily capital-markets multiple-choice quest
 
 - **Seed** (`seed_questions.py`, one-time): import MMLU professional/finance subsets — `professional_accounting`, `high_school_macroeconomics`, `high_school_microeconomics`, `econometrics` (via HF `datasets`/parquet). Map to schema, `source=mmlu`, `status=active`. De-dupe.
 - **User feedback**: "too professional" → `keep`/`remove` vote (one per user/question).
-- **Scheduled Claude task** (scheduled-tasks SKILL.md, weekly):
+- **Scheduled Claude task** (scheduled-tasks SKILL.md, weekly) — Claude **only selects/filters and prunes; it does NOT author/draft questions**:
   1. **Prune**: retire (`status=retired`) questions where `remove_votes ≥ 3 AND remove_votes > keep_votes`.
-  2. **Top-up**: if active pool `< 60`, import more verified questions from the professional source to refill.
-  3. Any LLM-*drafted* novel capital-markets questions are inserted as `status=pending_review` — **never auto-active**; `icjj` approves them in `/admin`. This honors the "LLM 可能出错" constraint: only verified-source questions go live automatically.
+  2. **Select / top-up**: if active pool `< 60`, **select** more questions from the verified professional source (capital-markets-relevant, de-duped) and **activate them directly** (`status=active`). No review queue — the source answers are already verified, so the questions Claude selects go live immediately. This honors the "LLM 可能出错" constraint: Claude never invents questions or answers, it only chooses among pre-verified ones and drops feedback-flagged ones.
 
 ## 9. Error handling & security
 
@@ -78,7 +77,7 @@ Backend pytest: argon2 hash/verify; allowlist + disabled rejection; HMAC cookie 
 
 ## 11. Out of scope (YAGNI)
 
-Public signup; email/password reset flows; OAuth; per-user question randomization; multi-question/day; categories/difficulty selection by user; quiz on the Vercel deployment.
+Public signup; email/password reset flows; OAuth; per-user question randomization; multi-question/day; categories/difficulty selection by user; quiz on the Vercel deployment; **LLM authoring/drafting of questions** (Claude only selects from verified sources + prunes); a `pending_review` approval queue (not needed — verified-source picks go live directly).
 
 ## 12. Defaulted sub-choices (changeable)
 
