@@ -15,6 +15,8 @@ async function forward(request, params, method) {
 
   const headers = { "Content-Type": "application/json" };
   if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
+  const cookie = request.headers.get("cookie");
+  if (cookie) headers["cookie"] = cookie;
 
   const init = { method, headers };
   if (method === "POST") init.body = await request.text();
@@ -22,10 +24,13 @@ async function forward(request, params, method) {
   try {
     const res = await fetch(target, init);
     const text = await res.text();
-    return new NextResponse(text, {
+    const response = new NextResponse(text, {
       status: res.status,
       headers: { "Content-Type": "application/json" },
     });
+    const setCookie = res.headers.get("set-cookie");
+    if (setCookie) response.headers.set("set-cookie", setCookie);
+    return response;
   } catch (e) {
     return NextResponse.json(
       { detail: `交易后端不可达（${BACKEND}）：${e.message}` },
