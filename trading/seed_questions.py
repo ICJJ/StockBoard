@@ -101,7 +101,7 @@ def seed_mmlu_pro(force: bool = False, loader=None) -> int:
 
 
 def _normalize_financeiq(ex: dict, subject: str):
-    q = ex.get("question") or ex.get("question_text") or ex.get("query")
+    q = ex.get("Question") or ex.get("question") or ex.get("question_text")
     if not q:
         return None
     options = ex.get("options")
@@ -111,7 +111,7 @@ def _normalize_financeiq(ex: dict, subject: str):
             v = ex.get(key)
             if v not in (None, ""):
                 options.append(v)
-    ans = ex.get("answer")
+    ans = ex.get("Answer") if ex.get("Answer") is not None else ex.get("answer")
     if isinstance(ans, str) and ans and ans[0].upper() in "ABCDEF":
         idx = "ABCDEF".index(ans[0].upper())
     elif isinstance(ans, int):
@@ -131,7 +131,7 @@ def _financeiq_default_loader():
         except Exception:
             continue
         for ex in ds:
-            norm = _normalize_financeiq(ex, cfg)
+            norm = _normalize_financeiq(ex, "financeiq")
             if norm:
                 yield norm
 
