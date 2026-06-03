@@ -110,6 +110,12 @@ export default function Page() {
       .catch(() => setGate("ok"));
   }, []);
 
+  // Leaderboard (left sidebar)
+  const [board, setBoard] = useState([]);
+  useEffect(() => {
+    quizApi.leaderboard().then((d) => setBoard(d.leaderboard || [])).catch(() => {});
+  }, []);
+
   function addSymbol(symbol) {
     const s = symbol.trim().toUpperCase();
     if (!s || watchlist.includes(s)) return;
@@ -158,41 +164,64 @@ export default function Page() {
         </div>
       </header>
 
-      <SearchBar onAdd={addSymbol} existing={watchlist} />
+      <div className="board-layout">
+        <aside className="board-side">
+          <h2 className="side-title">排行榜</h2>
+          {board.length === 0 ? (
+            <p className="side-empty">暂无数据</p>
+          ) : (
+            <ol className="lb-list">
+              {board.slice(0, 10).map((u, i) => (
+                <li key={u.username} className="lb-row">
+                  <span className="lb-rank">{i + 1}</span>
+                  <span className="lb-name">{u.username}</span>
+                  {u.streak > 0 && <span className="lb-streak">🔥{u.streak}</span>}
+                  <span className="lb-pts">{u.points}<small>分</small></span>
+                </li>
+              ))}
+            </ol>
+          )}
+          <a className="side-link" href="/leaderboard">完整排行榜 →</a>
+        </aside>
 
-      {error && (
-        <div className="notice error">
-          数据获取失败：{error}
-          <br />
-          请确认已在 Vercel 配置 FINNHUB_API_KEY 环境变量。
-        </div>
-      )}
+        <div className="board-main">
+          <SearchBar onAdd={addSymbol} existing={watchlist} />
 
-      {loading && Object.keys(quotes).length === 0 ? (
-        <div className="grid">
-          {watchlist.map((s) => (
-            <div key={s} className="skeleton" />
-          ))}
-        </div>
-      ) : watchlist.length === 0 ? (
-        <div className="empty">自选股为空，使用上方搜索框添加股票。</div>
-      ) : (
-        <div className="grid">
-          {watchlist.map((s) => (
-            <StockCard
-              key={s}
-              quote={quotes[s] || { symbol: s, name: "", current: null }}
-              history={history[s] || []}
-              onRemove={removeSymbol}
-            />
-          ))}
-        </div>
-      )}
+          {error && (
+            <div className="notice error">
+              数据获取失败：{error}
+              <br />
+              请确认已在 Vercel 配置 FINNHUB_API_KEY 环境变量。
+            </div>
+          )}
 
-      <footer className="footer">
-        数据由 <a href="https://finnhub.io" target="_blank" rel="noreferrer">Finnhub</a> 提供 ·
-        自动每 15 秒刷新 · 仅供参考，非投资建议
-      </footer>
+          {loading && Object.keys(quotes).length === 0 ? (
+            <div className="grid">
+              {watchlist.map((s) => (
+                <div key={s} className="skeleton" />
+              ))}
+            </div>
+          ) : watchlist.length === 0 ? (
+            <div className="empty">自选股为空，使用上方搜索框添加股票。</div>
+          ) : (
+            <div className="grid">
+              {watchlist.map((s) => (
+                <StockCard
+                  key={s}
+                  quote={quotes[s] || { symbol: s, name: "", current: null }}
+                  history={history[s] || []}
+                  onRemove={removeSymbol}
+                />
+              ))}
+            </div>
+          )}
+
+          <footer className="footer">
+            数据由 <a href="https://finnhub.io" target="_blank" rel="noreferrer">Finnhub</a> 提供 ·
+            自动每 15 秒刷新 · 仅供参考，非投资建议
+          </footer>
+        </div>
+      </div>
     </div>
   );
 }
