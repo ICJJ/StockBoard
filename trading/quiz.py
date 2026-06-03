@@ -95,3 +95,54 @@ def daily_question(quiz_date: str | None = None):
         return None
     idx = int(hashlib.sha256(quiz_date.encode()).hexdigest(), 16) % len(ids)
     return get_question(ids[idx])
+
+
+def day_state(user_id: int, quiz_date: str | None = None) -> dict:
+    quiz_date = quiz_date or today_et()
+    con = quiz_db.connect()
+    try:
+        row = con.execute(
+            "SELECT entered FROM attempts WHERE user_id=? AND quiz_date=?",
+            (user_id, quiz_date)).fetchone()
+    finally:
+        con.close()
+    return {"answered_today": row is not None, "entered_today": bool(row and row["entered"])}
+
+
+def record_attempt(user_id: int, question_id: int, choice_index: int,
+                   quiz_date: str | None = None) -> dict:
+    quiz_date = quiz_date or today_et()
+    q = get_question(question_id)
+    if q is None:
+        raise ValueError("no such question")
+    correct = (int(choice_index) == q["correct_index"])
+    con = quiz_db.connect()
+    try:
+        row = con.execute(
+            "SELECT * FROM attempts WHERE user_id=? AND quiz_date=?",
+            (user_id, quiz_date)).fetchone()
+        first_attempt = row is None
+        if first_attempt:
+            con.execute(
+                """INSERT INTO attempts
+                   (user_id, question_id, quiz_date, first_try_correct, entered, attempts_count)
+                   VALUES (?,?,?,?,?,1)""",
+                (user_id, question_id, quiz_date, 1 if correct else 0, 1 if correct else 0))
+            entered = correct
+        else:
+            con.execute(
+                """UPDATE attempts SET attempts_count = attempts_count + 1,
+                   entered = MAX(entered, ?) WHERE user_id=? AND quiz_date=?""",
+                (1 if correct else 0, user_id, quiz_date))
+            entered = bool(row["entered"]) or correct
+        con.commit()
+    finally:
+        con.close()
+    scored = bool(correct and first_attempt)
+    return {
+        "correct": correct,
+        "scored": scored,
+        "entered": bool(entered),
+        "correct_index": None if correct else q["correct_index"],
+        "explanation": None if correct else q["explanation"],
+    }
