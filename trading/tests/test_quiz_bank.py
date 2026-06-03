@@ -9,3 +9,17 @@ def test_schema_has_questions_and_feedback(quiz_db):
             "subject", "source", "status", "difficulty", "created_at"} <= qcols
     fcols = {r[1] for r in con.execute("PRAGMA table_info(question_feedback)")}
     assert {"id", "user_id", "question_id", "vote", "reason", "created_at"} <= fcols
+
+
+def test_question_store(quiz_db):
+    from trading import quiz
+    qid = quiz.add_question("What is 2+2?", ["3", "4", "5", "6"], 1,
+                            explanation="正确答案:4", subject="math", source="mmlu")
+    assert qid > 0
+    assert quiz.count_active() == 1
+    q = quiz.get_question(qid)
+    assert q["prompt"] == "What is 2+2?"
+    assert q["options"] == ["3", "4", "5", "6"]
+    assert q["correct_index"] == 1
+    quiz.add_question("x", ["a", "b", "c", "d"], 0, status="retired")
+    assert quiz.count_active() == 1
