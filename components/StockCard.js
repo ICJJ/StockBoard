@@ -67,18 +67,18 @@ export default function StockCard({ quote, history = [], onRemove }) {
           <div className="range-marker" style={{ left: `${markerPct}%` }} />
         </div>
         <div className="range-labels">
-          <span>L ${fmt(quote.low)}</span>
-          <span>H ${fmt(quote.high)}</span>
+          <span>最低 ${fmt(quote.low)}</span>
+          <span>最高 ${fmt(quote.high)}</span>
         </div>
       </div>
 
       <div className="card-stats">
         <div>
-          <span>Open</span>
+          <span>开盘</span>
           <b>${fmt(quote.open)}</b>
         </div>
         <div>
-          <span>Prev</span>
+          <span>昨收</span>
           <b>${fmt(quote.prevClose)}</b>
         </div>
       </div>
